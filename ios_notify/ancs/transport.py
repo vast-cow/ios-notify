@@ -74,7 +74,7 @@ class AncsTransport:
         if not self._accept_events:
             return
         reader = DataReader.from_buffer(args.characteristic_value)
-        data = bytes(reader.read_bytes(reader.unconsumed_buffer_length))
+        data = bytes(reader.read_buffer(reader.unconsumed_buffer_length))
         if self._loop is not None:
             self._loop.call_soon_threadsafe(self._put_event, RawAncsEvent(kind, data))
 

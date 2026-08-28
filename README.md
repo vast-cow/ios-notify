@@ -19,9 +19,18 @@ py -m pip install .
 ios-notify
 ```
 
-The program discovers an already bonded ANCS service; it does not advertise,
-scan for nearby devices, or perform pairing. Run with `--verbose` for debug
-logging. Bluetooth failures are retried with bounded exponential backoff.
+The program checks paired Bluetooth LE devices for ANCS; it does not advertise,
+scan for nearby devices, or perform pairing. It retains a GATT session and uses
+uncached discovery so stale Windows service interfaces are not selected. Run
+with `--verbose` for debug logging. Bluetooth failures are retried with bounded
+exponential backoff.
+
+To inspect paired endpoints, ANCS interfaces, access status, and an uncached
+device-level ANCS query without starting notification or toast workers, run:
+
+```powershell
+ios-notify --diagnose
+```
 
 ## Development
 

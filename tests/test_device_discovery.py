@@ -5,7 +5,7 @@ from uuid import UUID
 
 import pytest
 
-from ios_notify.windows.device_discovery import find_service_ids
+from ios_notify.windows.device_discovery import find_service_candidates
 
 
 def test_finds_services_with_the_aqs_filter_overload(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -20,9 +20,20 @@ def test_finds_services_with_the_aqs_filter_overload(monkeypatch: pytest.MonkeyP
 
     class FakeDeviceInformation:
         @staticmethod
-        async def find_all_async_aqs_filter(value: str) -> list[SimpleNamespace]:
+        async def find_all_async_aqs_filter_and_additional_properties(
+            value: str, properties: list[str]
+        ) -> list[SimpleNamespace]:
             assert value == selector
-            return [SimpleNamespace(id="service-1"), SimpleNamespace(id="service-2")]
+            assert properties == [
+                "System.Devices.Aep.DeviceAddress",
+                "System.Devices.Aep.IsConnected",
+            ]
+            return [
+                SimpleNamespace(id="service-1", name="iPhone", is_enabled=True,
+                    pairing=SimpleNamespace(is_paired=True), properties={"connected": True}),
+                SimpleNamespace(id="service-2", name="old iPhone", is_enabled=False,
+                    pairing=SimpleNamespace(is_paired=False), properties={}),
+            ]
 
         @staticmethod
         async def find_all_async() -> list[SimpleNamespace]:
@@ -43,4 +54,8 @@ def test_finds_services_with_the_aqs_filter_overload(monkeypatch: pytest.MonkeyP
         sys.modules, "winrt.windows.devices.enumeration", enumeration_module
     )
 
-    assert asyncio.run(find_service_ids(service_uuid)) == ["service-1", "service-2"]
+    candidates = asyncio.run(find_service_candidates(service_uuid))
+    assert [candidate.id for candidate in candidates] == ["service-1", "service-2"]
+    assert candidates[0].name == "iPhone"
+    assert candidates[0].is_paired is True
+    assert candidates[0].properties == {"connected": True}

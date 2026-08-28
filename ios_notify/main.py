@@ -31,12 +31,22 @@ async def main(config: Config | None = None) -> None:
 def run() -> None:
     parser = argparse.ArgumentParser(description="Forward iPhone notifications to Windows")
     parser.add_argument("--verbose", action="store_true", help="enable debug logging")
+    parser.add_argument(
+        "--diagnose",
+        action="store_true",
+        help="inspect Windows Bluetooth/ANCS state without starting the client",
+    )
     args = parser.parse_args()
     configure_logging(args.verbose)
     if platform.system() != "Windows":
         parser.error("ios-notify requires Windows 11")
     try:
-        asyncio.run(main())
+        if args.diagnose:
+            from ios_notify.windows.diagnostics import diagnose
+
+            asyncio.run(diagnose())
+        else:
+            asyncio.run(main())
     except KeyboardInterrupt:
         pass
 

@@ -161,13 +161,28 @@ class AncsTransport:
             raise ConnectionError("no paired Bluetooth LE devices were found")
         failures: list[str] = []
         for candidate in candidates:
+            LOGGER.debug(
+                "trying BLE endpoint name=%r enabled=%s paired=%s id=%s",
+                candidate.name,
+                candidate.is_enabled,
+                candidate.is_paired,
+                candidate.id,
+            )
             if not candidate.is_enabled:
-                failures.append(f"{candidate.name}: endpoint disabled")
-                continue
+                LOGGER.debug(
+                    "BLE endpoint %r reports is_enabled=False; trying it anyway",
+                    candidate.name,
+                )
             device = session = service = None
             registrations: list[tuple[object, str, object]] = []
             try:
-                device = await BluetoothLEDevice.from_id_async(candidate.id)
+                try:
+                    device = await BluetoothLEDevice.from_id_async(candidate.id)
+                except Exception as exc:
+                    failures.append(
+                        f"{candidate.name}: BluetoothLEDevice.from_id_async failed: {exc!r}"
+                    )
+                    continue
                 if device is None:
                     failures.append(f"{candidate.name}: BluetoothLEDevice.from_id_async returned None")
                     continue

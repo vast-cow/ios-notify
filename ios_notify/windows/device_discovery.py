@@ -10,6 +10,7 @@ LOGGER = logging.getLogger(__name__)
 DEVICE_PROPERTIES = [
     "System.Devices.Aep.DeviceAddress",
     "System.Devices.Aep.IsConnected",
+    "System.Devices.Aep.IsPresent",
 ]
 
 

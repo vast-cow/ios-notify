@@ -6,6 +6,18 @@ import logging
 from ios_notify.models import EventType, IOSNotification
 
 LOGGER = logging.getLogger(__name__)
+TOAST_APP_ID = "Python"
+TOAST_GROUP = "ios-ancs"
+
+
+def _clear_toast(tag: str) -> None:
+    from winrt.windows.ui.notifications import ToastNotificationManager
+
+    ToastNotificationManager.history.remove_grouped_tag_with_id(
+        tag,
+        TOAST_GROUP,
+        TOAST_APP_ID,
+    )
 
 
 class ToastService:
@@ -17,19 +29,26 @@ class ToastService:
         return f"{notification.session_id}-{notification.uid}"
 
     async def show(self, notification: IOSNotification) -> None:
-        from win11toast import clear_toast, toast_async
-
         tag = self._tag(notification)
         if notification.event == EventType.REMOVED:
-            # win11toast's removal API is synchronous and is the only operation
-            # intentionally moved off the asyncio/WinRT thread.
-            await asyncio.to_thread(clear_toast, tag=tag, group="ios-ancs")
+            # Keep the synchronous WinRT operation and its objects on one worker
+            # thread. win11toast.clear_toast uses a pre-PyWinRT 3.x overload name.
+            await asyncio.to_thread(_clear_toast, tag)
             return
+
+        from win11toast import toast_async
+
         title = notification.title or notification.app_name or "iPhone"
         body = "\n".join(
             part for part in (notification.subtitle, notification.message) if part
         )
-        await toast_async(title, body, tag=tag, group="ios-ancs")
+        await toast_async(
+            title,
+            body,
+            tag=tag,
+            group=TOAST_GROUP,
+            app_id=TOAST_APP_ID,
+        )
 
     async def run(self) -> None:
         while True:

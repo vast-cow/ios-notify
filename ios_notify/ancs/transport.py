@@ -58,7 +58,9 @@ class AncsTransport:
         writer = DataWriter()
         writer.write_bytes(request)
         async with asyncio.timeout(self.timeout):
-            status = await self._control_point.write_value_async(writer.detach_buffer(), GattWriteOption.WRITE_WITH_RESPONSE)
+            status = await self._control_point.write_value_with_option_async(
+                writer.detach_buffer(), GattWriteOption.WRITE_WITH_RESPONSE
+            )
         if status != GattCommunicationStatus.SUCCESS:
             raise ConnectionError(f"control point write failed: {status}")
 
@@ -253,8 +255,9 @@ class AncsTransport:
             self.state = TransportState.SUBSCRIBING
             data_source = await self._characteristic(service, DATA_SOURCE, int(Props.NOTIFY))
             notification_source = await self._characteristic(service, NOTIFICATION_SOURCE, int(Props.NOTIFY))
-            write_bits = int(Props.WRITE) | int(Props.WRITE_WITHOUT_RESPONSE)
-            control_point = await self._characteristic(service, CONTROL_POINT, write_bits)
+            control_point = await self._characteristic(
+                service, CONTROL_POINT, int(Props.WRITE)
+            )
             token = await self._subscribe(data_source, self._on_data_source)
             subscriptions.append((data_source, token))
             token = await self._subscribe(notification_source, self._on_notification_source)

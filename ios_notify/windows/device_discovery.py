@@ -9,5 +9,5 @@ async def find_service_ids(service_uuid: UUID) -> list[str]:
     from winrt.windows.devices.enumeration import DeviceInformation
 
     selector = GattDeviceService.get_device_selector_from_uuid(service_uuid)
-    devices = await DeviceInformation.find_all_async(selector)
+    devices = await DeviceInformation.find_all_async_aqs_filter(selector)
     return [device.id for device in devices]

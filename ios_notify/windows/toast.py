@@ -2,7 +2,6 @@ from __future__ import annotations
 
 import asyncio
 import logging
-from uuid import uuid4
 
 from ios_notify.models import EventType, IOSNotification
 
@@ -12,15 +11,15 @@ LOGGER = logging.getLogger(__name__)
 class ToastService:
     def __init__(self, notifications: asyncio.Queue[IOSNotification]) -> None:
         self.notifications = notifications
-        self.session_id = uuid4().hex
 
-    def _tag(self, uid: int) -> str:
-        return f"{self.session_id}-{uid}"
+    @staticmethod
+    def _tag(notification: IOSNotification) -> str:
+        return f"{notification.session_id}-{notification.uid}"
 
     async def show(self, notification: IOSNotification) -> None:
         from win11toast import clear_toast, toast_async
 
-        tag = self._tag(notification.uid)
+        tag = self._tag(notification)
         if notification.event == EventType.REMOVED:
             # win11toast's removal API is synchronous and is the only operation
             # intentionally moved off the asyncio/WinRT thread.

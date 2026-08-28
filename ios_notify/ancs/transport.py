@@ -30,6 +30,7 @@ class RawEventKind(Enum):
 class RawAncsEvent:
     kind: RawEventKind
     data: bytes = b""
+    session_id: int = 0
 
 
 class AncsTransport:
@@ -44,15 +45,20 @@ class AncsTransport:
         self._ready = asyncio.Event()
         self._disconnect = asyncio.Event()
         self._accept_events = False
+        self._session_id = 0
 
     async def wait_ready(self) -> None:
         await self._ready.wait()
 
-    async def write_control_point(self, request: bytes) -> None:
+    async def write_control_point(
+        self, request: bytes, session_id: int | None = None
+    ) -> None:
         from winrt.windows.devices.bluetooth.genericattributeprofile import GattCommunicationStatus, GattWriteOption
         from winrt.windows.storage.streams import DataWriter
 
         await self.wait_ready()
+        if session_id is not None and session_id != self._session_id:
+            raise ConnectionError("ANCS session changed before control point write")
         if self._control_point is None:
             raise ConnectionError("ANCS control point is not connected")
         writer = DataWriter()
@@ -70,15 +76,20 @@ class AncsTransport:
         except asyncio.QueueFull:
             LOGGER.warning("dropping ANCS event because the raw queue is full")
 
-    def _enqueue(self, kind: RawEventKind, args: object) -> None:
+    def _enqueue(
+        self, kind: RawEventKind, args: object, session_id: int | None = None
+    ) -> None:
         from winrt.windows.storage.streams import DataReader
 
-        if not self._accept_events:
+        session_id = self._session_id if session_id is None else session_id
+        if not self._accept_events or session_id != self._session_id:
             return
         reader = DataReader.from_buffer(args.characteristic_value)
         data = bytes(reader.read_buffer(reader.unconsumed_buffer_length))
         if self._loop is not None:
-            self._loop.call_soon_threadsafe(self._put_event, RawAncsEvent(kind, data))
+            self._loop.call_soon_threadsafe(
+                self._put_event, RawAncsEvent(kind, data, session_id)
+            )
 
     def _on_data_source(self, _sender: object, args: object) -> None:
         self._enqueue(RawEventKind.DATA_SOURCE, args)
@@ -246,6 +257,7 @@ class AncsTransport:
         self._control_point = None
         self._accept_events = False
         device = session = service = None
+        session_id = 0
         registrations: list[tuple[object, str, object]] = []
         subscriptions: list[tuple[object, object]] = []
         self.state = TransportState.DISCOVERING
@@ -258,12 +270,23 @@ class AncsTransport:
             control_point = await self._characteristic(
                 service, CONTROL_POINT, int(Props.WRITE)
             )
-            token = await self._subscribe(data_source, self._on_data_source)
-            subscriptions.append((data_source, token))
-            token = await self._subscribe(notification_source, self._on_notification_source)
-            subscriptions.append((notification_source, token))
+            self._session_id += 1
+            session_id = self._session_id
             self._control_point = control_point
+            # ANCS can deliver pre-existing notifications during the CCCD write.
+            # Accept callbacks before subscribing so those packets are not lost.
             self._accept_events = True
+
+            def data_callback(_sender: object, args: object) -> None:
+                self._enqueue(RawEventKind.DATA_SOURCE, args, session_id)
+
+            def notification_callback(_sender: object, args: object) -> None:
+                self._enqueue(RawEventKind.NOTIFICATION_SOURCE, args, session_id)
+
+            token = await self._subscribe(data_source, data_callback)
+            subscriptions.append((data_source, token))
+            token = await self._subscribe(notification_source, notification_callback)
+            subscriptions.append((notification_source, token))
             self.state = TransportState.READY
             self._ready.set()
             LOGGER.info("connected to iPhone ANCS")
@@ -285,7 +308,12 @@ class AncsTransport:
                 session.close()
             if device is not None:
                 device.close()
-            self._put_event(RawAncsEvent(RawEventKind.DISCONNECTED))
+            if session_id:
+                self._put_event(
+                    RawAncsEvent(
+                        RawEventKind.DISCONNECTED, session_id=session_id
+                    )
+                )
 
     async def run(self) -> None:
         self._loop = asyncio.get_running_loop()

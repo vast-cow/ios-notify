@@ -3,7 +3,7 @@ from datetime import datetime
 from struct import unpack_from
 
 from ios_notify.ancs.protocol import CommandID, NotificationAttributeID
-from ios_notify.models import EventType, NotificationEvent
+from ios_notify.models import EventFlag, EventType, NotificationEvent
 
 
 class ProtocolError(ValueError):
@@ -17,7 +17,9 @@ def parse_notification_source(data: bytes) -> NotificationEvent:
         event = EventType(data[0])
     except ValueError as error:
         raise ProtocolError(f"unknown event id {data[0]}") from error
-    return NotificationEvent(event, data[1], data[2], data[3], unpack_from("<I", data, 4)[0])
+    return NotificationEvent(
+        event, EventFlag(data[1]), data[2], data[3], unpack_from("<I", data, 4)[0]
+    )
 
 
 def parse_ancs_date(value: str) -> datetime | None:

@@ -2,7 +2,9 @@ from __future__ import annotations
 
 import asyncio
 import logging
+from pathlib import Path
 
+from ios_notify.icons.resolver import IconResolver
 from ios_notify.models import EventType, IOSNotification
 
 LOGGER = logging.getLogger(__name__)
@@ -21,8 +23,13 @@ def _clear_toast(tag: str) -> None:
 
 
 class ToastService:
-    def __init__(self, notifications: asyncio.Queue[IOSNotification]) -> None:
+    def __init__(
+        self,
+        notifications: asyncio.Queue[IOSNotification],
+        icons: IconResolver | None = None,
+    ) -> None:
         self.notifications = notifications
+        self.icons = icons
 
     @staticmethod
     def _tag(notification: IOSNotification) -> str:
@@ -42,9 +49,20 @@ class ToastService:
         body = "\n".join(
             part for part in (notification.subtitle, notification.message) if part
         )
+        icon_path: Path | None = None
+        if self.icons:
+            icon_path = self.icons.get_cached(notification.app_id)
+            if icon_path is None:
+                self.icons.prefetch(notification.app_id)
+        icon = (
+            {"src": str(icon_path.resolve()), "placement": "appLogoOverride"}
+            if icon_path
+            else None
+        )
         await toast_async(
             title,
             body,
+            icon=icon,
             tag=tag,
             group=TOAST_GROUP,
             app_id=TOAST_APP_ID,

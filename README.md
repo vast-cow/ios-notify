@@ -25,6 +25,13 @@ uncached discovery so stale Windows service interfaces are not selected. Run
 with `--verbose` for debug logging. Bluetooth failures are retried with bounded
 exponential backoff.
 
+Notification app icons are resolved from the notification's bundle identifier
+using Apple's public App Store metadata and cached under
+`%LOCALAPPDATA%\ios-notify\icons`. A cache miss never delays the current toast:
+the icon is downloaded in the background and used by subsequent notifications.
+System, private, and region-restricted apps that cannot be resolved are shown
+without a per-notification icon.
+
 To inspect paired endpoints, ANCS interfaces, access status, and an uncached
 device-level ANCS query without starting notification or toast workers, run:
 

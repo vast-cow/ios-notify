@@ -1,5 +1,6 @@
 import asyncio
 import sys
+from pathlib import Path
 from types import ModuleType
 
 import pytest
@@ -47,3 +48,41 @@ def test_clear_toast_uses_grouped_tag_with_id_overload(
     _clear_toast("7-42")
 
     assert removed == [("7-42", TOAST_GROUP, TOAST_APP_ID)]
+
+
+def test_show_uses_cached_icon_as_square_app_logo(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    calls: list[tuple[tuple[object, ...], dict[str, object]]] = []
+
+    async def toast_async(*args: object, **kwargs: object) -> None:
+        calls.append((args, kwargs))
+
+    toast_module = ModuleType("win11toast")
+    toast_module.toast_async = toast_async  # type: ignore[attr-defined]
+    monkeypatch.setitem(sys.modules, "win11toast", toast_module)
+    icon = tmp_path / "icon.png"
+    icon.write_bytes(b"png")
+
+    class FakeResolver:
+        def get_cached(self, _app_id: str | None) -> Path:
+            return icon
+
+        def prefetch(self, _app_id: str | None) -> None:
+            raise AssertionError("a cached icon must not be prefetched")
+
+    notification = IOSNotification(
+        uid=1,
+        event=EventType.ADDED,
+        session_id=2,
+        app_id="com.example.app",
+        title="Title",
+    )
+    service = ToastService(asyncio.Queue(), FakeResolver())  # type: ignore[arg-type]
+
+    asyncio.run(service.show(notification))
+
+    assert calls[0][1]["icon"] == {
+        "src": str(icon.resolve()),
+        "placement": "appLogoOverride",
+    }

@@ -13,6 +13,7 @@ import platform
 from ios_notify.ancs.client import AncsClient
 from ios_notify.ancs.transport import AncsTransport
 from ios_notify.config import Config
+from ios_notify.icons import AppStoreIconProvider, IconCache, IconResolver
 from ios_notify.logging_config import configure_logging
 from ios_notify.windows.toast import ToastService
 
@@ -21,7 +22,8 @@ async def main(config: Config | None = None) -> None:
     config = config or Config()
     transport = AncsTransport(queue_size=config.queue_size, timeout=config.gatt_timeout)
     client = AncsClient(transport, queue_size=config.queue_size)
-    toast = ToastService(client.notification_queue)
+    icons = IconResolver(IconCache(), (AppStoreIconProvider(),))
+    toast = ToastService(client.notification_queue, icons)
     async with asyncio.TaskGroup() as tasks:
         tasks.create_task(transport.run(), name="ANCS transport")
         tasks.create_task(client.run(), name="ANCS client")

@@ -11,7 +11,47 @@ from ios_notify.windows.toast import (
     TOAST_GROUP,
     ToastService,
     _clear_toast,
+    _show_toast,
 )
+
+
+def _install_fake_winrt(monkeypatch: pytest.MonkeyPatch) -> tuple[type, list[object]]:
+    shown: list[object] = []
+
+    class FakeXmlDocument:
+        source = ""
+
+        def load_xml(self, source: str) -> None:
+            self.source = source
+
+    class FakeToastNotification:
+        def __init__(self, xml: FakeXmlDocument) -> None:
+            self.xml = xml
+            self.tag = ""
+            self.group = ""
+
+    class FakeNotifier:
+        def show(self, toast: object) -> None:
+            shown.append(toast)
+
+    class FakeToastNotificationManager:
+        @staticmethod
+        def create_toast_notifier_with_id(app_id: str) -> FakeNotifier:
+            assert app_id == TOAST_APP_ID
+            return FakeNotifier()
+
+    xml_module = ModuleType("winrt.windows.data.xml.dom")
+    xml_module.XmlDocument = FakeXmlDocument  # type: ignore[attr-defined]
+    notifications_module = ModuleType("winrt.windows.ui.notifications")
+    notifications_module.ToastNotification = FakeToastNotification  # type: ignore[attr-defined]
+    notifications_module.ToastNotificationManager = (  # type: ignore[attr-defined]
+        FakeToastNotificationManager
+    )
+    monkeypatch.setitem(sys.modules, "winrt.windows.data.xml.dom", xml_module)
+    monkeypatch.setitem(
+        sys.modules, "winrt.windows.ui.notifications", notifications_module
+    )
+    return FakeToastNotification, shown
 
 
 def test_toast_tag_uses_ancs_session_and_uid() -> None:
@@ -50,17 +90,30 @@ def test_clear_toast_uses_grouped_tag_with_id_overload(
     assert removed == [("7-42", TOAST_GROUP, TOAST_APP_ID)]
 
 
+def test_show_toast_uses_winrt_with_escaped_text_and_icon(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    toast_type, shown = _install_fake_winrt(monkeypatch)
+    icon = tmp_path / "icon & image.png"
+    icon.write_bytes(b"png")
+
+    _show_toast("A <title>", "body & more", icon, "7-42")
+
+    assert len(shown) == 1
+    toast = shown[0]
+    assert isinstance(toast, toast_type)
+    assert toast.tag == "7-42"
+    assert toast.group == TOAST_GROUP
+    assert "<text>A &lt;title&gt;</text>" in toast.xml.source
+    assert "<text>body &amp; more</text>" in toast.xml.source
+    assert 'placement="appLogoOverride"' in toast.xml.source
+    assert icon.resolve().as_uri().replace("&", "&amp;") in toast.xml.source
+
+
 def test_show_uses_cached_icon_as_square_app_logo(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ) -> None:
-    calls: list[tuple[tuple[object, ...], dict[str, object]]] = []
-
-    async def toast_async(*args: object, **kwargs: object) -> None:
-        calls.append((args, kwargs))
-
-    toast_module = ModuleType("win11toast")
-    toast_module.toast_async = toast_async  # type: ignore[attr-defined]
-    monkeypatch.setitem(sys.modules, "win11toast", toast_module)
+    _, shown = _install_fake_winrt(monkeypatch)
     icon = tmp_path / "icon.png"
     icon.write_bytes(b"png")
 
@@ -82,23 +135,13 @@ def test_show_uses_cached_icon_as_square_app_logo(
 
     asyncio.run(service.show(notification))
 
-    assert calls[0][1]["icon"] == {
-        "src": str(icon.resolve()),
-        "placement": "appLogoOverride",
-    }
+    assert icon.resolve().as_uri() in shown[0].xml.source
 
 
 def test_show_waits_briefly_for_first_icon(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ) -> None:
-    calls: list[dict[str, object]] = []
-
-    async def toast_async(*_args: object, **kwargs: object) -> None:
-        calls.append(kwargs)
-
-    toast_module = ModuleType("win11toast")
-    toast_module.toast_async = toast_async  # type: ignore[attr-defined]
-    monkeypatch.setitem(sys.modules, "win11toast", toast_module)
+    _, shown = _install_fake_winrt(monkeypatch)
     icon = tmp_path / "downloaded.png"
     icon.write_bytes(b"png")
 
@@ -123,23 +166,13 @@ def test_show_waits_briefly_for_first_icon(
 
     asyncio.run(service.show(notification))
 
-    assert calls[0]["icon"] == {
-        "src": str(icon.resolve()),
-        "placement": "appLogoOverride",
-    }
+    assert icon.resolve().as_uri() in shown[0].xml.source
 
 
 def test_show_does_not_cancel_slow_icon_resolution(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    calls: list[dict[str, object]] = []
-
-    async def toast_async(*_args: object, **kwargs: object) -> None:
-        calls.append(kwargs)
-
-    toast_module = ModuleType("win11toast")
-    toast_module.toast_async = toast_async  # type: ignore[attr-defined]
-    monkeypatch.setitem(sys.modules, "win11toast", toast_module)
+    _, shown = _install_fake_winrt(monkeypatch)
     monkeypatch.setattr("ios_notify.windows.toast.ICON_GRACE_PERIOD", 0.001)
 
     async def exercise() -> bool:
@@ -180,4 +213,4 @@ def test_show_does_not_cancel_slow_icon_resolution(
         return still_running
 
     assert asyncio.run(exercise())
-    assert calls[0]["icon"] is None
+    assert "<image" not in shown[0].xml.source

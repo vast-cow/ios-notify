@@ -10,6 +10,7 @@ from ios_notify.models import EventType, IOSNotification
 LOGGER = logging.getLogger(__name__)
 TOAST_APP_ID = "Python"
 TOAST_GROUP = "ios-ancs"
+ICON_GRACE_PERIOD = 0.75
 
 
 def _clear_toast(tag: str) -> None:
@@ -53,7 +54,15 @@ class ToastService:
         if self.icons:
             icon_path = self.icons.get_cached(notification.app_id)
             if icon_path is None:
-                self.icons.prefetch(notification.app_id)
+                task = self.icons.prefetch(notification.app_id)
+                if task is not None:
+                    try:
+                        icon_path = await asyncio.wait_for(
+                            asyncio.shield(task),
+                            timeout=ICON_GRACE_PERIOD,
+                        )
+                    except TimeoutError:
+                        pass
         icon = (
             {"src": str(icon_path.resolve()), "placement": "appLogoOverride"}
             if icon_path

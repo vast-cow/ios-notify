@@ -39,18 +39,22 @@ class IconResolver:
         self.cache.mark_negative(app_id)
         return None
 
-    def prefetch(self, app_id: str | None) -> None:
+    def prefetch(
+        self, app_id: str | None
+    ) -> asyncio.Task[Path | None] | None:
         if not app_id or self.get_cached(app_id) or self.cache.is_negative(app_id):
-            return
+            return None
         existing = self._pending.get(app_id)
         if existing and not existing.done():
-            return
+            return existing
         task = asyncio.create_task(self.resolve(app_id), name=f"icon: {app_id}")
         self._pending[app_id] = task
         task.add_done_callback(lambda completed: self._finished(app_id, completed))
+        return task
 
     def _finished(self, app_id: str, task: asyncio.Task[Path | None]) -> None:
-        self._pending.pop(app_id, None)
+        if self._pending.get(app_id) is task:
+            self._pending.pop(app_id, None)
         if not task.cancelled() and task.exception():
             LOGGER.warning(
                 "unexpected icon resolution failure for %s: %s",

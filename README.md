@@ -27,8 +27,9 @@ exponential backoff.
 
 Notification app icons are resolved from the notification's bundle identifier
 using Apple's public App Store metadata and cached under
-`%LOCALAPPDATA%\ios-notify\icons`. A cache miss never delays the current toast:
-the icon is downloaded in the background and used by subsequent notifications.
+`%LOCALAPPDATA%\ios-notify\icons`. On a cache miss, notification display waits
+briefly for the icon; if the lookup takes longer, the toast is shown without it
+while the download continues in the background for subsequent notifications.
 System, private, and region-restricted apps that cannot be resolved are shown
 without a per-notification icon.
 

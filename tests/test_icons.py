@@ -78,11 +78,13 @@ def test_prefetch_deduplicates_background_resolution(tmp_path: Path) -> None:
         provider = WaitingProvider()
         resolver = IconResolver(IconCache(tmp_path), (provider,))
 
-        resolver.prefetch("com.example.app")
-        resolver.prefetch("com.example.app")
+        first = resolver.prefetch("com.example.app")
+        second = resolver.prefetch("com.example.app")
+        assert first is second
         await started.wait()
         release.set()
-        await next(iter(resolver._pending.values()))
+        assert first is not None
+        await first
         return provider.calls, resolver.get_cached("com.example.app")
 
     calls, cached = asyncio.run(exercise())

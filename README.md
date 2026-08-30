@@ -40,6 +40,14 @@ device-level ANCS query without starting notification or toast workers, run:
 ios-notify --diagnose
 ```
 
+The diagnostic report also checks the registered Windows notification identity
+and notification permission. To test Windows toast delivery independently of
+Bluetooth and ANCS, run:
+
+```powershell
+ios-notify --test-toast
+```
+
 ## Development
 
 The protocol and parser modules do not import WinRT, so their tests work on

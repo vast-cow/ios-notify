@@ -31,6 +31,8 @@ def _install_fake_winrt(monkeypatch: pytest.MonkeyPatch) -> tuple[type, list[obj
             self.group = ""
 
     class FakeNotifier:
+        setting = "ENABLED"
+
         def show(self, toast: object) -> None:
             shown.append(toast)
 

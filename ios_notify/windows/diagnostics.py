@@ -7,6 +7,11 @@ import sys
 
 from ios_notify.constants import ANCS_SERVICE
 from ios_notify.windows.device_discovery import find_paired_ble_devices, find_service_candidates
+from ios_notify.windows.notification_identity import (
+    TOAST_APP_ID,
+    TOAST_DISPLAY_NAME,
+    registered_display_name,
+)
 
 
 def _package_identity() -> bool:
@@ -40,11 +45,20 @@ async def diagnose() -> None:
     """Print a side-effect-free Windows/BLE diagnostic report."""
     from winrt.windows.devices.bluetooth import BluetoothCacheMode, BluetoothLEDevice
     from winrt.windows.devices.enumeration import DeviceAccessInformation
+    from winrt.windows.ui.notifications import ToastNotificationManager
 
     print(f"Windows: {platform.platform()} ({platform.version()})")
     print(f"Python: {sys.version.split()[0]}")
     print(f"PyWinRT: {_winrt_versions()}")
     print(f"Package identity: {'yes' if _package_identity() else 'no'}")
+    display_name = registered_display_name()
+    notifier = ToastNotificationManager.create_toast_notifier_with_id(TOAST_APP_ID)
+    setting = getattr(notifier.setting, "name", str(notifier.setting))
+    print("Notification identity:")
+    print(f"  AppUserModelID: {TOAST_APP_ID}")
+    print(f"  Registry registration: {'yes' if display_name else 'no'}")
+    print(f"  DisplayName: {display_name or TOAST_DISPLAY_NAME + ' (expected)'}")
+    print(f"  Notifier setting: {setting}")
 
     devices = await find_paired_ble_devices()
     print(f"Paired BLE endpoints: {len(devices)}")

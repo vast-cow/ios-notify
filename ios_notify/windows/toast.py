@@ -7,9 +7,9 @@ from xml.sax.saxutils import escape, quoteattr
 
 from ios_notify.icons.resolver import IconResolver
 from ios_notify.models import EventType, IOSNotification
+from ios_notify.windows.notification_identity import TOAST_APP_ID
 
 LOGGER = logging.getLogger(__name__)
-TOAST_APP_ID = "Python"
 TOAST_GROUP = "ios-ancs"
 ICON_GRACE_PERIOD = 0.75
 
@@ -45,7 +45,10 @@ def _show_toast(title: str, body: str, icon_path: Path | None, tag: str) -> None
     toast = ToastNotification(xml)
     toast.tag = tag
     toast.group = TOAST_GROUP
-    ToastNotificationManager.create_toast_notifier_with_id(TOAST_APP_ID).show(toast)
+    LOGGER.debug("showing Windows toast app_id=%r tag=%r", TOAST_APP_ID, tag)
+    notifier = ToastNotificationManager.create_toast_notifier_with_id(TOAST_APP_ID)
+    LOGGER.debug("Windows toast notifier setting=%s", notifier.setting)
+    notifier.show(toast)
 
 
 class ToastService:

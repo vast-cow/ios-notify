@@ -15,7 +15,11 @@ from ios_notify.ancs.transport import AncsTransport
 from ios_notify.config import Config
 from ios_notify.icons import AppStoreIconProvider, IconCache, IconResolver
 from ios_notify.logging_config import configure_logging
-from ios_notify.windows.toast import ToastService
+from ios_notify.windows.notification_identity import (
+    TOAST_APP_ID,
+    ensure_notification_identity,
+)
+from ios_notify.windows.toast import ToastService, _show_toast
 
 
 async def main(config: Config | None = None) -> None:
@@ -38,15 +42,24 @@ def run() -> None:
         action="store_true",
         help="inspect Windows Bluetooth/ANCS state without starting the client",
     )
+    parser.add_argument(
+        "--test-toast",
+        action="store_true",
+        help="send a test toast without connecting to Bluetooth",
+    )
     args = parser.parse_args()
     configure_logging(args.verbose)
     if platform.system() != "Windows":
         parser.error("ios-notify requires Windows 11")
     try:
+        ensure_notification_identity()
         if args.diagnose:
             from ios_notify.windows.diagnostics import diagnose
 
             asyncio.run(diagnose())
+        elif args.test_toast:
+            _show_toast("iOS Notify", "Windows notification test", None, "test")
+            print(f"Test notification sent using AppUserModelID {TOAST_APP_ID}")
         else:
             asyncio.run(main())
     except KeyboardInterrupt:

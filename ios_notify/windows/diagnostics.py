@@ -41,6 +41,14 @@ def _installed(name: str) -> bool:
     return True
 
 
+def _notifier_setting(notifier: object) -> str:
+    try:
+        raw_setting = getattr(notifier, "setting")
+    except OSError as exc:
+        return f"unavailable ({exc})"
+    return getattr(raw_setting, "name", str(raw_setting))
+
+
 async def diagnose() -> None:
     """Print a side-effect-free Windows/BLE diagnostic report."""
     from winrt.windows.devices.bluetooth import BluetoothCacheMode, BluetoothLEDevice
@@ -53,7 +61,7 @@ async def diagnose() -> None:
     print(f"Package identity: {'yes' if _package_identity() else 'no'}")
     display_name = registered_display_name()
     notifier = ToastNotificationManager.create_toast_notifier_with_id(TOAST_APP_ID)
-    setting = getattr(notifier.setting, "name", str(notifier.setting))
+    setting = _notifier_setting(notifier)
     print("Notification identity:")
     print(f"  AppUserModelID: {TOAST_APP_ID}")
     print(f"  Registry registration: {'yes' if display_name else 'no'}")

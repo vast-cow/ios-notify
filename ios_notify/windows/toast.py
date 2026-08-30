@@ -47,7 +47,6 @@ def _show_toast(title: str, body: str, icon_path: Path | None, tag: str) -> None
     toast.group = TOAST_GROUP
     LOGGER.debug("showing Windows toast app_id=%r tag=%r", TOAST_APP_ID, tag)
     notifier = ToastNotificationManager.create_toast_notifier_with_id(TOAST_APP_ID)
-    LOGGER.debug("Windows toast notifier setting=%s", notifier.setting)
     notifier.show(toast)
 
 

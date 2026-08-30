@@ -31,7 +31,9 @@ def _install_fake_winrt(monkeypatch: pytest.MonkeyPatch) -> tuple[type, list[obj
             self.group = ""
 
     class FakeNotifier:
-        setting = "ENABLED"
+        @property
+        def setting(self) -> object:
+            raise AssertionError("toast delivery must not query notifier.setting")
 
         def show(self, toast: object) -> None:
             shown.append(toast)
